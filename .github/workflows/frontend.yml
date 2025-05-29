@@ -35,7 +35,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb @types/aws-lambda
 
       - name: Build
         run: npm run build
