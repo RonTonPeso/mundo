@@ -1,5 +1,6 @@
 name: Frontend CI/CD
 
+# This workflow builds and deploys the frontend application
 on:
   push:
     branches: [ main ]
