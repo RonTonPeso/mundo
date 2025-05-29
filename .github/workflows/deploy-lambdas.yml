@@ -1,0 +1,48 @@
+name: Deploy Lambda Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/lambda/**'
+      - '.github/workflows/deploy-lambdas.yml'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        lambda:
+          - submit-sighting
+          - get-sightings
+          - get-upload-url
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        working-directory: src/lambda/${{ matrix.lambda }}
+        run: npm ci
+
+      - name: Build Lambda
+        working-directory: src/lambda/${{ matrix.lambda }}
+        run: npm run build
+
+      - name: Zip Lambda
+        working-directory: src/lambda/${{ matrix.lambda }}/dist
+        run: zip -r function.zip .
+
+      - name: Upload Lambda to AWS
+        uses: appleboy/lambda-action@v0.1.9
+        with:
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_region: ${{ secrets.AWS_REGION }}
+          function_name: mundo-${{ matrix.lambda }}
+          zip_file: src/lambda/${{ matrix.lambda }}/dist/function.zip
