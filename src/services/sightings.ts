@@ -1,4 +1,4 @@
-import { Sighting } from '../types/sighting';
+import type { Sighting } from '../types/sighting';
 
 const API_BASE_URL = 'https://api.mundo.app';
 

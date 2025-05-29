@@ -1,19 +1,19 @@
-variable "domain_name" {
-  description = "The domain name for the application"
+variable "aws_region" {
+  description = "AWS region to deploy resources"
   type        = string
-  default     = "mundo.app"
+  default     = "us-east-1"
 }
 
 variable "environment" {
-  description = "The environment (e.g., dev, prod)"
+  description = "Environment name (e.g., prod, dev)"
   type        = string
   default     = "prod"
 }
 
-variable "region" {
-  description = "The AWS region to deploy to"
+variable "project" {
+  description = "Project name"
   type        = string
-  default     = "us-east-1"
+  default     = "mundo"
 }
 
 variable "dynamodb_read_capacity" {
@@ -26,4 +26,17 @@ variable "dynamodb_write_capacity" {
   description = "DynamoDB write capacity units"
   type        = number
   default     = 5
+}
+
+variable "github_repo" {
+  description = "GitHub repository in format 'owner/repo'"
+  type        = string
+}
+
+locals {
+  common_tags = {
+    Project     = var.project
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
 } 

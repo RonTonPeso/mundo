@@ -1,6 +1,6 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const s3Client = new S3Client({});
 
@@ -60,7 +60,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     // Create the S3 command
     const command = new PutObjectCommand({
-      Bucket: process.env.UPLOAD_BUCKET_NAME,
+      Bucket: process.env.UPLOAD_BUCKET,
       Key: key,
       ContentType: `image/${params.filename.split('.').pop()?.toLowerCase()}`,
     });

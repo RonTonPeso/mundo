@@ -1,23 +1,21 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 interface SightingSubmission {
-  userId: string;
-  speciesName: string;
-  location: {
-    latitude: number;
-    longitude: number;
-  };
-  description?: string;
-  imageUrl?: string;
-  weather?: {
-    temperature?: number;
-    conditions?: string;
-  };
+  userId?: string;
+  isGuestSubmission?: boolean;
+  guestName?: string;
+  guestEmail?: string;
+  name: string;
+  scientificName: string;
+  location: string;
+  description: string;
+  category: string;
+  imageUrl: string;
 }
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -36,41 +34,74 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const submission: SightingSubmission = JSON.parse(event.body);
 
     // Validate required fields
-    if (!submission.userId?.trim()) {
+    if (!submission.name?.trim()) {
       return {
         statusCode: 400,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
-        body: JSON.stringify({ error: 'userId is required' }),
+        body: JSON.stringify({ error: 'name is required' }),
       };
     }
 
-    if (!submission.speciesName?.trim()) {
+    if (!submission.scientificName?.trim()) {
       return {
         statusCode: 400,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
-        body: JSON.stringify({ error: 'speciesName is required' }),
+        body: JSON.stringify({ error: 'scientificName is required' }),
       };
     }
 
-    if (!submission.location?.latitude || !submission.location?.longitude) {
+    if (!submission.location?.trim()) {
       return {
         statusCode: 400,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
-        body: JSON.stringify({ error: 'location with latitude and longitude is required' }),
+        body: JSON.stringify({ error: 'location is required' }),
+      };
+    }
+
+    if (!submission.description?.trim()) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: JSON.stringify({ error: 'description is required' }),
+      };
+    }
+
+    if (!submission.category?.trim()) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: JSON.stringify({ error: 'category is required' }),
+      };
+    }
+
+    if (!submission.imageUrl?.trim()) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: JSON.stringify({ error: 'imageUrl is required' }),
       };
     }
 
     // Validate field constraints
-    if (submission.description && submission.description.length > 1000) {
+    if (submission.description.length > 1000) {
       return {
         statusCode: 400,
         headers: {
@@ -81,61 +112,45 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    if (submission.weather?.conditions && submission.weather.conditions.length > 50) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-        body: JSON.stringify({ error: 'weather conditions must be 50 characters or less' }),
-      };
-    }
-
-    if (submission.weather?.temperature !== undefined) {
-      if (submission.weather.temperature < -50 || submission.weather.temperature > 50) {
+    // Validate guest information if provided
+    if (submission.isGuestSubmission) {
+      if (submission.guestEmail && !isValidEmail(submission.guestEmail)) {
         return {
           statusCode: 400,
           headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
           },
-          body: JSON.stringify({ error: 'temperature must be between -50 and 50 degrees' }),
+          body: JSON.stringify({ error: 'invalid guest email format' }),
+        };
+      }
+
+      if (submission.guestName && submission.guestName.length > 100) {
+        return {
+          statusCode: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+          body: JSON.stringify({ error: 'guest name must be 100 characters or less' }),
         };
       }
     }
 
-    if (submission.location.latitude < -90 || submission.location.latitude > 90) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-        body: JSON.stringify({ error: 'latitude must be between -90 and 90 degrees' }),
-      };
-    }
-
-    if (submission.location.longitude < -180 || submission.location.longitude > 180) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-        body: JSON.stringify({ error: 'longitude must be between -180 and 180 degrees' }),
-      };
-    }
-
     const timestamp = new Date().toISOString();
     const item = {
-      userId: submission.userId.trim(),
+      id: `${timestamp}-${Math.random().toString(36).substr(2, 9)}`,
+      userId: submission.userId?.trim(),
+      isGuestSubmission: submission.isGuestSubmission || false,
+      guestName: submission.guestName?.trim(),
+      guestEmail: submission.guestEmail?.trim(),
+      name: submission.name.trim(),
+      scientificName: submission.scientificName.trim(),
+      location: submission.location.trim(),
+      description: submission.description.trim(),
+      category: submission.category.trim(),
+      imageUrl: submission.imageUrl.trim(),
       timestamp,
-      speciesName: submission.speciesName.trim(),
-      location: submission.location,
-      description: submission.description?.trim(),
-      imageUrl: submission.imageUrl?.trim(),
-      weather: submission.weather,
     };
 
     await docClient.send(
@@ -164,4 +179,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       body: JSON.stringify({ error: 'Internal server error' }),
     };
   }
-}; 
+};
+
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+} 

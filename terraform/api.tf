@@ -63,22 +63,20 @@ resource "aws_iam_role_policy" "lambda_exec" {
 resource "aws_apigatewayv2_api" "api" {
   name          = "mundo-api"
   protocol_type = "HTTP"
-  tags          = local.common_tags
-
   cors_configuration {
-    allow_origins = ["https://mundo.app"]
-    allow_methods = ["GET", "POST", "PUT", "DELETE"]
+    allow_origins = ["*"]
+    allow_methods = ["GET", "POST", "OPTIONS"] #three lambdas
     allow_headers = ["Content-Type", "Authorization"]
     max_age       = 300
   }
+  tags = local.common_tags
 }
 
 # API Gateway stage
 resource "aws_apigatewayv2_stage" "api" {
-  api_id      = aws_apigatewayv2_api.api.id
-  name        = "prod"
+  api_id = aws_apigatewayv2_api.api.id
+  name   = "prod"
   auto_deploy = true
-
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_logs.arn
     format = jsonencode({
@@ -102,27 +100,31 @@ resource "aws_cloudwatch_log_group" "api_logs" {
   tags              = local.common_tags
 }
 
-# API Gateway domain name
-resource "aws_apigatewayv2_domain_name" "api" {
-  domain_name = "api.mundo.app"
-  tags        = local.common_tags
+# API Gateway log policy
+resource "aws_iam_role_policy" "api_logs" {
+  name = "mundo-api-logs-policy"
+  role = aws_iam_role.lambda_exec.id
 
-  domain_name_configuration {
-    certificate_arn = aws_acm_certificate.cert.arn
-    endpoint_type   = "REGIONAL"
-    security_policy = "TLS_1_2"
-  }
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = [
+          "${aws_cloudwatch_log_group.api_logs.arn}:*"
+        ]
+      }
+    ]
+  })
 }
 
-# API Gateway DNS record
-resource "aws_route53_record" "api" {
-  zone_id = aws_route53_zone.main.zone_id
-  name    = "api.mundo.app"
-  type    = "A"
-
-  alias {
-    name                   = aws_apigatewayv2_domain_name.api.domain_name_configuration[0].target_domain_name
-    zone_id                = aws_apigatewayv2_domain_name.api.domain_name_configuration[0].hosted_zone_id
-    evaluate_target_health = false
-  }
+# Output the API Gateway URL
+output "api_url" {
+  value = "${aws_apigatewayv2_api.api.api_endpoint}/prod"
+  description = "The URL of the API Gateway endpoint"
 } 

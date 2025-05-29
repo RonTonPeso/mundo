@@ -8,7 +8,7 @@ export const SightingsPage: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedSpecies, setSelectedSpecies] = useState<string | undefined>();
 
-  const handleSightingSuccess = (sighting: Sighting) => {
+  const handleSightingSuccess = (_sighting: Sighting) => {
     setShowForm(false);
     // Optionally refresh the list or add the new sighting to the list
   };

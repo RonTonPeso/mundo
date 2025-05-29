@@ -1,13 +1,13 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 interface QueryParams {
   userId?: string;
-  speciesName?: string;
+  category?: string;
   lastEvaluatedKey?: string;
   limit?: number;
 }
@@ -16,7 +16,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   try {
     const params: QueryParams = {
       userId: event.queryStringParameters?.userId,
-      speciesName: event.queryStringParameters?.speciesName,
+      category: event.queryStringParameters?.category,
       lastEvaluatedKey: event.queryStringParameters?.lastEvaluatedKey,
       limit: event.queryStringParameters?.limit ? parseInt(event.queryStringParameters.limit, 10) : 10,
     };
@@ -45,15 +45,15 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    // Validate speciesName if provided
-    if (params.speciesName && !params.speciesName.trim()) {
+    // Validate category if provided
+    if (params.category && !['edible', 'medicinal', 'poisonous', 'rare'].includes(params.category)) {
       return {
         statusCode: 400,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
-        body: JSON.stringify({ error: 'speciesName must not be empty' }),
+        body: JSON.stringify({ error: 'invalid category' }),
       };
     }
 
@@ -74,6 +74,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }
     }
 
+    let command: QueryCommand | ScanCommand;
     let queryParams: any = {
       TableName: process.env.TABLE_NAME,
       Limit: params.limit,
@@ -81,31 +82,31 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     };
 
     if (params.userId) {
-      // Query by userId
+      // Query by userId using GSI
+      queryParams.IndexName = 'UserIdIndex';
       queryParams.KeyConditionExpression = 'userId = :userId';
       queryParams.ExpressionAttributeValues = {
         ':userId': params.userId.trim(),
       };
-    } else if (params.speciesName) {
-      // Query by speciesName using GSI
-      queryParams.IndexName = 'SpeciesNameIndex';
-      queryParams.KeyConditionExpression = 'speciesName = :speciesName';
+      command = new QueryCommand(queryParams);
+    } else if (params.category) {
+      // Query by category using GSI
+      queryParams.IndexName = 'CategoryIndex';
+      queryParams.KeyConditionExpression = 'category = :category';
       queryParams.ExpressionAttributeValues = {
-        ':speciesName': params.speciesName.trim(),
+        ':category': params.category,
       };
+      command = new QueryCommand(queryParams);
     } else {
       // Scan the table if no filters provided
-      queryParams = {
-        TableName: process.env.TABLE_NAME,
-        Limit: params.limit,
-      };
+      command = new ScanCommand(queryParams);
     }
 
     if (exclusiveStartKey) {
       queryParams.ExclusiveStartKey = exclusiveStartKey;
     }
 
-    const result = await docClient.send(new QueryCommand(queryParams));
+    const result = await docClient.send(command);
 
     // Encode the LastEvaluatedKey for pagination
     const lastEvaluatedKey = result.LastEvaluatedKey

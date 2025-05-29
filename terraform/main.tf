@@ -16,14 +16,5 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-1"
-}
-
-# Tags to be applied to all resources
-locals {
-  common_tags = {
-    Project     = "Mundo"
-    Environment = "production"
-    ManagedBy   = "terraform"
-  }
+  region = var.aws_region
 } 
