@@ -1,6 +1,7 @@
 name: Frontend CI/CD
 
 # This workflow builds and deploys the frontend application
+# Triggered on changes to frontend code or workflow file
 on:
   push:
     branches: [ main ]
